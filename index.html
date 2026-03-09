@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Gantt Chart Maker</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -637,6 +638,50 @@
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
     ::-webkit-scrollbar-thumb:hover { background: #3c4260; }
 
+    /* ── Export ── */
+    .btn-export {
+      background: #2d8659;
+      color: #fff;
+    }
+
+    .btn-export:hover { background: #34a06a; }
+
+    .exporting .gantt-add-row,
+    .exporting .remove-row-btn,
+    .exporting .note-placeholder,
+    .exporting .resize-handle {
+      display: none !important;
+    }
+
+    .exporting .gantt-wrapper {
+      overflow: visible !important;
+    }
+
+    .exporting .gantt-container {
+      min-width: 0 !important;
+    }
+
+    .export-title {
+      display: none;
+      padding: 18px 24px 10px;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .export-title .export-date-range {
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .exporting .export-title {
+      display: block;
+    }
+
     /* ── Responsive ── */
     @media (max-width: 768px) {
       .sidebar { width: 220px; min-width: 220px; }
@@ -658,6 +703,8 @@
     <input type="date" id="endDate">
     <button class="btn btn-primary" id="applyDates">Apply</button>
     <button class="btn btn-ghost" id="thisQuarterBtn">This Quarter</button>
+    <span style="width:1px;height:24px;background:var(--border);margin:0 4px;"></span>
+    <button class="btn btn-export" id="exportBtn">Export as Image</button>
   </div>
 </header>
 
@@ -697,6 +744,10 @@
 
   <div class="gantt-wrapper" id="ganttWrapper">
     <div class="gantt-container" id="ganttContainer">
+      <div class="export-title" id="exportTitle">
+        <div>Gantt Chart</div>
+        <div class="export-date-range" id="exportDateRange"></div>
+      </div>
       <div class="gantt-header" id="ganttHeader">
         <div class="row-label-spacer">Tasks</div>
         <div class="week-columns" id="weekHeaders"></div>
@@ -1198,6 +1249,58 @@ function openNoteModal(weekIdx) {
     }
   });
 }
+
+/* ── Export as image ── */
+document.getElementById('exportBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('exportBtn');
+  const original = btn.textContent;
+  btn.textContent = 'Exporting…';
+  btn.disabled = true;
+
+  const dateRange = document.getElementById('exportDateRange');
+  const s = $startDate.value;
+  const e = $endDate.value;
+  if (s && e) {
+    const sd = new Date(s + 'T00:00:00');
+    const ed = new Date(e + 'T00:00:00');
+    dateRange.textContent = `${formatShort(sd)} – ${formatShort(ed)}`;
+  }
+
+  document.body.classList.add('exporting');
+
+  const container = document.getElementById('ganttContainer');
+  const wrapper = document.getElementById('ganttWrapper');
+  const prevOverflow = wrapper.style.overflow;
+  const prevScroll = wrapper.scrollLeft;
+  wrapper.style.overflow = 'visible';
+  wrapper.scrollLeft = 0;
+
+  await new Promise(r => setTimeout(r, 100));
+
+  try {
+    const canvas = await html2canvas(container, {
+      backgroundColor: '#0f1117',
+      scale: 2,
+      useCORS: true,
+      logging: false,
+    });
+
+    const link = document.createElement('a');
+    link.download = `gantt-chart-${new Date().toISOString().split('T')[0]}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    showToast('Chart exported as PNG');
+  } catch (err) {
+    showToast('Export failed — see console for details');
+    console.error('Export error:', err);
+  } finally {
+    document.body.classList.remove('exporting');
+    wrapper.style.overflow = prevOverflow;
+    wrapper.scrollLeft = prevScroll;
+    btn.textContent = original;
+    btn.disabled = false;
+  }
+});
 
 /* ── Init ── */
 renderColorPicker();
