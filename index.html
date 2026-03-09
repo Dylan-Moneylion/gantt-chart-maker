@@ -312,6 +312,16 @@
     .week-col-header .week-label { font-weight: 700; font-size: 12px; color: var(--text); }
     .week-col-header .week-dates { font-size: 10px; }
 
+    .week-col-header .header-note-dot {
+      display: inline-block;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--accent);
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+
     .week-col-header.today-col {
       background: var(--today);
     }
@@ -454,6 +464,152 @@
       color: var(--accent);
     }
 
+    /* ── Notes row ── */
+    .notes-row {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      min-height: 52px;
+      background: var(--surface);
+    }
+
+    .notes-row .row-label {
+      min-width: 180px;
+      max-width: 180px;
+      display: flex;
+      align-items: center;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      border-right: 1px solid var(--border);
+    }
+
+    .notes-row .note-cells {
+      display: flex;
+      flex: 1;
+    }
+
+    .note-cell {
+      min-width: 110px;
+      flex: 1;
+      border-right: 1px solid var(--grid-line);
+      padding: 6px 8px;
+      cursor: pointer;
+      position: relative;
+      transition: background 0.12s;
+    }
+
+    .note-cell:hover {
+      background: var(--surface-2);
+    }
+
+    .note-cell.today-col {
+      background: var(--today);
+    }
+
+    .note-cell.today-col:hover {
+      background: rgba(108, 92, 231, 0.25);
+    }
+
+    .note-cell .note-preview {
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.4;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      word-break: break-word;
+    }
+
+    .note-cell .note-preview:not(:empty) {
+      color: var(--text);
+    }
+
+    .note-cell .note-placeholder {
+      font-size: 11px;
+      color: var(--border);
+      opacity: 0;
+      transition: opacity 0.12s;
+    }
+
+    .note-cell:hover .note-placeholder {
+      opacity: 1;
+    }
+
+    .note-cell .note-indicator {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    /* ── Note modal ── */
+    .note-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: fadeIn 0.15s;
+    }
+
+    .note-modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      width: 400px;
+      max-width: 90vw;
+      box-shadow: 0 12px 48px rgba(0,0,0,0.5);
+      animation: fadeIn 0.2s;
+    }
+
+    .note-modal h3 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .note-modal .note-modal-dates {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+
+    .note-modal textarea {
+      width: 100%;
+      min-height: 120px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      font-size: 13px;
+      font-family: inherit;
+      resize: vertical;
+      outline: none;
+      line-height: 1.5;
+    }
+
+    .note-modal textarea:focus {
+      border-color: var(--accent);
+    }
+
+    .note-modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
     /* ── Tooltips / Floating ── */
     .toast {
       position: fixed;
@@ -486,7 +642,8 @@
       .sidebar { width: 220px; min-width: 220px; }
       .gantt-header .row-label-spacer,
       .gantt-row .row-label { min-width: 130px; max-width: 130px; }
-      .week-col-header, .week-cell { min-width: 85px; }
+      .week-col-header, .week-cell, .note-cell { min-width: 85px; }
+      .notes-row .row-label { min-width: 130px; max-width: 130px; }
     }
   </style>
 </head>
@@ -545,6 +702,10 @@
         <div class="week-columns" id="weekHeaders"></div>
       </div>
       <div class="gantt-body" id="ganttBody"></div>
+      <div class="notes-row" id="notesRow">
+        <div class="row-label">Notes</div>
+        <div class="note-cells" id="noteCells"></div>
+      </div>
       <div class="gantt-add-row" id="ganttAddRow">Drop a task here to add a new row</div>
     </div>
   </div>
@@ -560,6 +721,7 @@ const COLORS = [
 let tasks = [];
 let chartRows = [];
 let weeks = [];
+let weekNotes = {};
 let selectedColor = COLORS[0];
 let nextId = 1;
 
@@ -569,6 +731,7 @@ const $weekHeaders = document.getElementById('weekHeaders');
 const $ganttBody = document.getElementById('ganttBody');
 const $taskBank = document.getElementById('taskBank');
 const $ganttAddRow = document.getElementById('ganttAddRow');
+const $noteCells = document.getElementById('noteCells');
 
 /* ── Date helpers ── */
 function mondayOf(d) {
@@ -633,8 +796,9 @@ function renderColorPicker() {
 function renderHeaders() {
   $weekHeaders.innerHTML = weeks.map((w, i) => {
     const current = isCurrentWeek(w);
+    const hasNote = !!weekNotes[i];
     return `<div class="week-col-header ${current ? 'today-col' : ''}" data-week="${i}">
-      <div class="week-label">W${i + 1}</div>
+      <div class="week-label">W${i + 1}${hasNote ? '<span class="header-note-dot"></span>' : ''}</div>
       <div class="week-dates">${formatShort(w.start)} – ${formatShort(w.end)}</div>
     </div>`;
   }).join('');
@@ -927,6 +1091,7 @@ function applyDates() {
   });
   renderHeaders();
   renderGantt();
+  renderNotes();
 }
 
 document.getElementById('applyDates').addEventListener('click', applyDates);
@@ -952,6 +1117,86 @@ function escHtml(s) {
   const d = document.createElement('div');
   d.textContent = s;
   return d.innerHTML;
+}
+
+/* ── Week notes ── */
+function renderNotes() {
+  $noteCells.innerHTML = '';
+  weeks.forEach((w, wi) => {
+    const cell = document.createElement('div');
+    cell.className = 'note-cell' + (isCurrentWeek(w) ? ' today-col' : '');
+    cell.dataset.week = wi;
+
+    const note = weekNotes[wi] || '';
+    if (note) {
+      cell.innerHTML = `<div class="note-indicator"></div><div class="note-preview">${escHtml(note)}</div>`;
+      cell.title = note;
+    } else {
+      cell.innerHTML = `<span class="note-placeholder">+ note</span>`;
+    }
+
+    cell.addEventListener('click', () => openNoteModal(wi));
+    $noteCells.appendChild(cell);
+  });
+}
+
+function openNoteModal(weekIdx) {
+  const w = weeks[weekIdx];
+  const existing = weekNotes[weekIdx] || '';
+
+  const overlay = document.createElement('div');
+  overlay.className = 'note-modal-overlay';
+
+  overlay.innerHTML = `
+    <div class="note-modal">
+      <h3>Week ${weekIdx + 1} Notes</h3>
+      <div class="note-modal-dates">${formatShort(w.start)} – ${formatShort(w.end)}</div>
+      <textarea id="noteTextarea" placeholder="Add notes for this week...">${escHtml(existing)}</textarea>
+      <div class="note-modal-actions">
+        <button class="btn btn-ghost" id="noteDeleteBtn">Clear</button>
+        <button class="btn btn-ghost" id="noteCancelBtn">Cancel</button>
+        <button class="btn btn-primary" id="noteSaveBtn">Save</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  const textarea = overlay.querySelector('#noteTextarea');
+  textarea.focus();
+  textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+
+  overlay.querySelector('#noteSaveBtn').addEventListener('click', () => {
+    const val = textarea.value.trim();
+    if (val) {
+      weekNotes[weekIdx] = val;
+    } else {
+      delete weekNotes[weekIdx];
+    }
+    overlay.remove();
+    renderNotes();
+    renderHeaders();
+  });
+
+  overlay.querySelector('#noteCancelBtn').addEventListener('click', () => overlay.remove());
+
+  overlay.querySelector('#noteDeleteBtn').addEventListener('click', () => {
+    delete weekNotes[weekIdx];
+    overlay.remove();
+    renderNotes();
+    renderHeaders();
+  });
+
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.remove();
+  });
+
+  textarea.addEventListener('keydown', e => {
+    if (e.key === 'Escape') overlay.remove();
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      overlay.querySelector('#noteSaveBtn').click();
+    }
+  });
 }
 
 /* ── Init ── */
