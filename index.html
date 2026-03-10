@@ -102,6 +102,27 @@
       cursor: pointer;
     }
 
+    .quarter-select {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 10px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      outline: none;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238b8fa3'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      padding-right: 24px;
+    }
+
+    .quarter-select:focus {
+      border-color: var(--accent);
+    }
+
     .btn {
       padding: 7px 16px;
       border: none;
@@ -1181,7 +1202,13 @@
     <label for="endDate">To</label>
     <input type="date" id="endDate">
     <button class="btn btn-primary" id="applyDates">Apply</button>
-    <button class="btn btn-ghost" id="thisQuarterBtn">This Quarter</button>
+    <select class="quarter-select" id="quarterSelect">
+      <option value="1">Q1</option>
+      <option value="2">Q2</option>
+      <option value="3">Q3</option>
+      <option value="4">Q4</option>
+    </select>
+    <select class="quarter-select" id="yearSelect"></select>
     <span style="width:1px;height:24px;background:var(--border);margin:0 4px;"></span>
     <button class="btn btn-export" id="exportBtn">Export as Image</button>
     <span style="width:1px;height:24px;background:var(--border);margin:0 4px;"></span>
@@ -1292,11 +1319,12 @@ function mondayOf(d) {
   return dt;
 }
 
-function getQuarterRange() {
-  const now = new Date();
-  const qMonth = Math.floor(now.getMonth() / 3) * 3;
-  const start = new Date(now.getFullYear(), qMonth, 1);
-  const end = new Date(now.getFullYear(), qMonth + 3, 0);
+function getQuarterRange(quarter, year) {
+  const q = quarter !== undefined ? quarter : Math.floor(new Date().getMonth() / 3) + 1;
+  const y = year !== undefined ? year : new Date().getFullYear();
+  const qMonth = (q - 1) * 3;
+  const start = new Date(y, qMonth, 1);
+  const end = new Date(y, qMonth + 3, 0);
   return { start, end };
 }
 
@@ -1998,12 +2026,33 @@ function applyDates() {
 
 document.getElementById('applyDates').addEventListener('click', applyDates);
 
-document.getElementById('thisQuarterBtn').addEventListener('click', () => {
-  const { start, end } = getQuarterRange();
+/* ── Quarter / Year selectors ── */
+const $quarterSelect = document.getElementById('quarterSelect');
+const $yearSelect = document.getElementById('yearSelect');
+
+(function populateYearSelect() {
+  const currentYear = new Date().getFullYear();
+  for (let y = currentYear - 2; y <= currentYear + 3; y++) {
+    const opt = document.createElement('option');
+    opt.value = y;
+    opt.textContent = y;
+    if (y === currentYear) opt.selected = true;
+    $yearSelect.appendChild(opt);
+  }
+  $quarterSelect.value = Math.floor(new Date().getMonth() / 3) + 1;
+})();
+
+function applyQuarterSelection() {
+  const q = parseInt($quarterSelect.value);
+  const y = parseInt($yearSelect.value);
+  const { start, end } = getQuarterRange(q, y);
   $startDate.value = isoDate(start);
   $endDate.value = isoDate(end);
   applyDates();
-});
+}
+
+$quarterSelect.addEventListener('change', applyQuarterSelection);
+$yearSelect.addEventListener('change', applyQuarterSelection);
 
 /* ── Toast ── */
 function showToast(msg) {
@@ -2307,10 +2356,7 @@ document.getElementById('sidebarToggle').addEventListener('click', () => {
 renderColorPicker();
 renderCategoryTags();
 renderCategorySelect();
-const { start: qStart, end: qEnd } = getQuarterRange();
-$startDate.value = isoDate(qStart);
-$endDate.value = isoDate(qEnd);
-applyDates();
+applyQuarterSelection();
 window.addEventListener('resize', syncStickyOffsets);
 </script>
 
