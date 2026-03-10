@@ -1013,6 +1013,10 @@
     <button class="btn btn-ghost" id="thisQuarterBtn">This Quarter</button>
     <span style="width:1px;height:24px;background:var(--border);margin:0 4px;"></span>
     <button class="btn btn-export" id="exportBtn">Export as Image</button>
+    <span style="width:1px;height:24px;background:var(--border);margin:0 4px;"></span>
+    <button class="btn btn-ghost" id="saveConfigBtn">Save Config</button>
+    <button class="btn btn-ghost" id="loadConfigBtn">Load Config</button>
+    <input type="file" id="loadConfigInput" accept=".json" style="display:none;">
   </div>
 </header>
 
@@ -1872,6 +1876,76 @@ document.getElementById('exportBtn').addEventListener('click', async () => {
     btn.textContent = original;
     btn.disabled = false;
   }
+});
+
+/* ── Save / Load config ── */
+function gatherState() {
+  return {
+    title: document.getElementById('chartTitle').textContent,
+    startDate: $startDate.value,
+    endDate: $endDate.value,
+    tasks,
+    chartRowIds: chartRows.map(r => r.task.id),
+    weekNotes,
+    nextId,
+  };
+}
+
+function saveConfig() {
+  const data = JSON.stringify(gatherState(), null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const link = document.createElement('a');
+  link.download = `gantt-config-${new Date().toISOString().split('T')[0]}.json`;
+  link.href = URL.createObjectURL(blob);
+  link.click();
+  URL.revokeObjectURL(link.href);
+  showToast('Config saved as JSON');
+}
+
+function loadConfig(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+
+      tasks = data.tasks || [];
+      nextId = data.nextId || (tasks.length ? Math.max(...tasks.map(t => t.id)) + 1 : 1);
+      weekNotes = data.weekNotes || {};
+
+      chartRows = (data.chartRowIds || [])
+        .map(id => { const t = tasks.find(tk => tk.id === id); return t ? { task: t } : null; })
+        .filter(Boolean);
+
+      if (data.startDate) $startDate.value = data.startDate;
+      if (data.endDate) $endDate.value = data.endDate;
+
+      if (data.title) {
+        document.getElementById('chartTitle').textContent = data.title;
+        document.getElementById('exportChartName').textContent = data.title;
+        document.title = data.title;
+      }
+
+      applyDates();
+      renderTaskBank();
+      showToast('Config loaded');
+    } catch (err) {
+      showToast('Failed to load config — invalid file');
+      console.error('Load config error:', err);
+    }
+  };
+  reader.readAsText(file);
+}
+
+document.getElementById('saveConfigBtn').addEventListener('click', saveConfig);
+
+document.getElementById('loadConfigBtn').addEventListener('click', () => {
+  document.getElementById('loadConfigInput').click();
+});
+
+document.getElementById('loadConfigInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (file) loadConfig(file);
+  e.target.value = '';
 });
 
 /* ── Sidebar toggle ── */
