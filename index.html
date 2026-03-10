@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Gantt Chart Maker</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1211,6 +1212,7 @@
     <select class="quarter-select" id="yearSelect"></select>
     <span style="width:1px;height:24px;background:var(--border);margin:0 4px;"></span>
     <button class="btn btn-export" id="exportBtn">Export as Image</button>
+    <button class="btn btn-export" id="exportExcelBtn">Export as Excel</button>
     <span style="width:1px;height:24px;background:var(--border);margin:0 4px;"></span>
     <button class="btn btn-ghost" id="saveConfigBtn">Save Config</button>
     <button class="btn btn-ghost" id="loadConfigBtn">Load Config</button>
@@ -2231,6 +2233,141 @@ document.getElementById('exportBtn').addEventListener('click', async () => {
     wrapper.style.overflow = prevOverflow;
     wrapper.scrollLeft = prevScroll;
     btn.textContent = original;
+    btn.disabled = false;
+  }
+});
+
+/* ── Export as Excel ── */
+document.getElementById('exportExcelBtn').addEventListener('click', () => {
+  const btn = document.getElementById('exportExcelBtn');
+  btn.textContent = 'Exporting…';
+  btn.disabled = true;
+
+  try {
+    const title = document.getElementById('chartTitle').textContent || 'Gantt Chart';
+    const wb = XLSX.utils.book_new();
+
+    const headerRow = ['Task', 'Category', 'Weeks'];
+    weeks.forEach((w, i) => {
+      headerRow.push(`W${i + 1}\n${formatShort(w.start)} – ${formatShort(w.end)}`);
+    });
+
+    const data = [headerRow];
+
+    const merges = [];
+
+    chartRows.forEach((row, ri) => {
+      const t = row.task;
+      const r = [t.name, t.category || '', t.weeks + 'w'];
+      weeks.forEach((_, wi) => {
+        if (t.startWeek !== null && wi === t.startWeek) {
+          r.push(t.name);
+        } else {
+          r.push('');
+        }
+      });
+      data.push(r);
+
+      if (t.startWeek !== null && t.weeks > 1) {
+        merges.push({
+          s: { r: ri + 1, c: t.startWeek + 3 },
+          e: { r: ri + 1, c: t.startWeek + t.weeks - 1 + 3 },
+        });
+      }
+    });
+
+    const notesRow = ['Notes', '', ''];
+    let hasNotes = false;
+    weeks.forEach((_, wi) => {
+      const note = weekNotes[wi] || '';
+      if (note) hasNotes = true;
+      notesRow.push(note);
+    });
+    if (hasNotes) data.push(notesRow);
+
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!merges'] = merges;
+
+    const colWidths = [{ wch: 22 }, { wch: 12 }, { wch: 6 }];
+    weeks.forEach(() => colWidths.push({ wch: 16 }));
+    ws['!cols'] = colWidths;
+
+    function hexToArgb(hex) {
+      hex = hex.replace('#', '');
+      if (hex.length === 3) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+      return 'FF' + hex.toUpperCase();
+    }
+
+    function luminance(hex) {
+      hex = hex.replace('#', '');
+      const r = parseInt(hex.substring(0,2), 16) / 255;
+      const g = parseInt(hex.substring(2,4), 16) / 255;
+      const b = parseInt(hex.substring(4,6), 16) / 255;
+      return 0.299 * r + 0.587 * g + 0.114 * b;
+    }
+
+    const headerStyle = {
+      font: { bold: true, color: { rgb: 'FFFFFFFF' }, sz: 11 },
+      fill: { fgColor: { rgb: 'FF1A1D27' } },
+      alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+      border: {
+        top: { style: 'thin', color: { rgb: 'FF2E3345' } },
+        bottom: { style: 'thin', color: { rgb: 'FF2E3345' } },
+        left: { style: 'thin', color: { rgb: 'FF2E3345' } },
+        right: { style: 'thin', color: { rgb: 'FF2E3345' } },
+      }
+    };
+
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    for (let C = range.s.c; C <= range.e.c; C++) {
+      const addr = XLSX.utils.encode_cell({ r: 0, c: C });
+      if (ws[addr]) ws[addr].s = headerStyle;
+    }
+
+    const taskCellStyle = (taskColor, fontColor) => ({
+      fill: { fgColor: { rgb: taskColor } },
+      font: { bold: true, color: { rgb: fontColor }, sz: 10 },
+      alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+      border: {
+        top: { style: 'thin', color: { rgb: 'FF2E3345' } },
+        bottom: { style: 'thin', color: { rgb: 'FF2E3345' } },
+        left: { style: 'thin', color: { rgb: 'FF2E3345' } },
+        right: { style: 'thin', color: { rgb: 'FF2E3345' } },
+      }
+    });
+
+    chartRows.forEach((row, ri) => {
+      const t = row.task;
+      const excelRow = ri + 1;
+      const taskColor = hexToArgb(t.color);
+      const fontColor = luminance(t.color) > 0.5 ? 'FF000000' : 'FFFFFFFF';
+      const style = taskCellStyle(taskColor, fontColor);
+
+      if (t.startWeek !== null) {
+        for (let wi = t.startWeek; wi < t.startWeek + t.weeks; wi++) {
+          const addr = XLSX.utils.encode_cell({ r: excelRow, c: wi + 3 });
+          if (!ws[addr]) ws[addr] = { t: 's', v: '' };
+          ws[addr].s = style;
+        }
+      }
+
+      const nameAddr = XLSX.utils.encode_cell({ r: excelRow, c: 0 });
+      if (ws[nameAddr]) {
+        ws[nameAddr].s = {
+          font: { bold: true, sz: 11 },
+          alignment: { vertical: 'center' },
+        };
+      }
+    });
+
+    XLSX.utils.book_append_sheet(wb, ws, title.substring(0, 31));
+    XLSX.writeFile(wb, `gantt-chart-${new Date().toISOString().split('T')[0]}.xlsx`);
+    showToast('Chart exported as Excel');
+  } catch (err) {
+    showToast('Excel export failed — see console');
+    console.error('Excel export error:', err);
+  } finally {
+    btn.textContent = 'Export as Excel';
     btn.disabled = false;
   }
 });
