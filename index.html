@@ -549,6 +549,7 @@
       display: flex;
       flex-direction: column;
       min-width: max-content;
+      min-height: 100%;
     }
 
     /* Week header */
@@ -614,7 +615,6 @@
 
     /* Gantt rows */
     .gantt-body {
-      flex: 1;
     }
 
     .gantt-row {
@@ -864,13 +864,14 @@
     /* Add-row zone at bottom */
     .gantt-add-row {
       display: flex;
-      border-bottom: 1px solid var(--border);
-      min-height: 48px;
+      flex: 1;
+      min-height: 120px;
       align-items: center;
       justify-content: center;
       color: var(--text-muted);
       font-size: 13px;
       cursor: default;
+      border-top: 1px dashed var(--border);
     }
 
     .gantt-add-row.drag-over-add {
@@ -1340,16 +1341,30 @@ document.getElementById('newCategoryInput').addEventListener('keydown', e => {
   }
 });
 
+/* ── Dropdown positioning helper ── */
+function positionDropdown(dd, anchorEl) {
+  const rect = anchorEl.getBoundingClientRect();
+  dd.style.left = rect.left + 'px';
+  dd.style.top = (rect.bottom + 4) + 'px';
+  dd.style.visibility = 'hidden';
+  document.body.appendChild(dd);
+  const ddRect = dd.getBoundingClientRect();
+  if (ddRect.bottom > window.innerHeight - 8) {
+    dd.style.top = (rect.top - ddRect.height - 4) + 'px';
+  }
+  if (ddRect.right > window.innerWidth - 8) {
+    dd.style.left = (window.innerWidth - ddRect.width - 8) + 'px';
+  }
+  dd.style.visibility = '';
+}
+
 /* ── Category dropdown ── */
 function showCategoryDropdown(anchorEl, task) {
   closeCategoryDropdown();
 
-  const rect = anchorEl.getBoundingClientRect();
   const dd = document.createElement('div');
   dd.className = 'category-dropdown';
   dd.id = 'categoryDropdown';
-  dd.style.top = (rect.bottom + 4) + 'px';
-  dd.style.left = rect.left + 'px';
 
   const noneItem = document.createElement('div');
   noneItem.className = 'category-dropdown-item' + (!task.category ? ' active' : '');
@@ -1375,7 +1390,7 @@ function showCategoryDropdown(anchorEl, task) {
     dd.appendChild(item);
   });
 
-  document.body.appendChild(dd);
+  positionDropdown(dd, anchorEl);
   setTimeout(() => {
     document.addEventListener('click', function closeFn(e) {
       if (!dd.contains(e.target) && e.target !== anchorEl) {
@@ -1460,12 +1475,9 @@ const WEEK_OPTIONS = [1, 2, 3, 4, 5, 6, 8, 10, 12];
 function showWeeksDropdown(anchorEl, task) {
   closeWeeksDropdown();
 
-  const rect = anchorEl.getBoundingClientRect();
   const dd = document.createElement('div');
   dd.className = 'weeks-dropdown';
   dd.id = 'weeksDropdown';
-  dd.style.top = (rect.bottom + 4) + 'px';
-  dd.style.left = rect.left + 'px';
 
   WEEK_OPTIONS.forEach(w => {
     const item = document.createElement('div');
@@ -1480,7 +1492,7 @@ function showWeeksDropdown(anchorEl, task) {
     dd.appendChild(item);
   });
 
-  document.body.appendChild(dd);
+  positionDropdown(dd, anchorEl);
 
   const closeFn = (e) => {
     if (!dd.contains(e.target) && e.target !== anchorEl) {
@@ -1495,12 +1507,9 @@ function showWeeksDropdown(anchorEl, task) {
 function showColorDropdown(anchorEl, task) {
   closeColorDropdown();
 
-  const rect = anchorEl.getBoundingClientRect();
   const dd = document.createElement('div');
   dd.className = 'color-dropdown';
   dd.id = 'colorDropdown';
-  dd.style.top = (rect.bottom + 4) + 'px';
-  dd.style.left = rect.left + 'px';
 
   COLORS.forEach(c => {
     const swatch = document.createElement('div');
@@ -1515,7 +1524,7 @@ function showColorDropdown(anchorEl, task) {
     dd.appendChild(swatch);
   });
 
-  document.body.appendChild(dd);
+  positionDropdown(dd, anchorEl);
   setTimeout(() => {
     document.addEventListener('click', function closeFn(e) {
       if (!dd.contains(e.target) && e.target !== anchorEl) {
