@@ -22,6 +22,7 @@
       --row-alt: #1e2230;
       --grid-line: #252a3a;
       --today: rgba(108, 92, 231, 0.15);
+      --label-width: 200px;
       --radius: 8px;
       --shadow: 0 4px 24px rgba(0,0,0,0.3);
     }
@@ -563,8 +564,9 @@
     }
 
     .gantt-header .row-label-spacer {
-      min-width: 200px;
-      max-width: 200px;
+      min-width: var(--label-width);
+      max-width: var(--label-width);
+      position: relative;
       border-right: 1px solid var(--border);
       padding: 10px 14px;
       font-size: 12px;
@@ -574,6 +576,35 @@
       color: var(--text-muted);
       display: flex;
       align-items: center;
+    }
+
+    .label-resize-handle {
+      position: absolute;
+      top: 0;
+      right: -3px;
+      width: 6px;
+      height: 100%;
+      cursor: col-resize;
+      z-index: 12;
+    }
+
+    .label-resize-handle::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 2px;
+      height: 20px;
+      border-radius: 1px;
+      background: var(--border);
+      transition: background 0.15s, height 0.15s;
+    }
+
+    .label-resize-handle:hover::after,
+    .label-resize-handle.resizing::after {
+      background: var(--accent);
+      height: 100%;
     }
 
     .week-columns {
@@ -629,8 +660,8 @@
     }
 
     .gantt-row .row-label {
-      min-width: 200px;
-      max-width: 200px;
+      min-width: var(--label-width);
+      max-width: var(--label-width);
       display: flex;
       align-items: center;
       padding: 6px 10px;
@@ -899,8 +930,8 @@
     }
 
     .notes-row .row-label {
-      min-width: 200px;
-      max-width: 200px;
+      min-width: var(--label-width);
+      max-width: var(--label-width);
       display: flex;
       align-items: center;
       padding: 6px 14px;
@@ -1134,9 +1165,9 @@
     @media (max-width: 768px) {
       .sidebar { width: 220px; min-width: 220px; }
       .gantt-header .row-label-spacer,
-      .gantt-row .row-label { min-width: 150px; max-width: 150px; }
+      .gantt-row .row-label { min-width: var(--label-width); max-width: var(--label-width); }
       .week-col-header, .week-cell, .note-cell { min-width: 85px; }
-      .notes-row .row-label { min-width: 150px; max-width: 150px; }
+      .notes-row .row-label { min-width: var(--label-width); max-width: var(--label-width); }
     }
   </style>
 </head>
@@ -1215,7 +1246,7 @@
         <div class="export-date-range" id="exportDateRange"></div>
       </div>
       <div class="gantt-header" id="ganttHeader">
-        <div class="row-label-spacer">Tasks</div>
+        <div class="row-label-spacer">Tasks<div class="label-resize-handle" id="labelResizeHandle"></div></div>
         <div class="week-columns" id="weekHeaders"></div>
       </div>
       <div class="notes-row collapsed" id="notesRow">
@@ -2165,6 +2196,7 @@ function gatherState() {
     chartRowIds: chartRows.map(r => r.task.id),
     weekNotes,
     categories,
+    labelWidth: getComputedStyle(document.documentElement).getPropertyValue('--label-width').trim(),
     nextId,
   };
 }
@@ -2204,6 +2236,10 @@ function loadConfig(file) {
         document.title = data.title;
       }
 
+      if (data.labelWidth) {
+        document.documentElement.style.setProperty('--label-width', data.labelWidth);
+      }
+
       applyDates();
       renderTaskBank();
       renderCategoryTags();
@@ -2236,6 +2272,36 @@ document.getElementById('sidebarToggle').addEventListener('click', () => {
   const isCollapsed = sidebar.classList.toggle('collapsed');
   btn.textContent = isCollapsed ? '▶' : '◀';
 });
+
+/* ── Label column resize ── */
+(function() {
+  const handle = document.getElementById('labelResizeHandle');
+  const container = document.getElementById('ganttContainer');
+  let startX, startWidth;
+
+  handle.addEventListener('mousedown', e => {
+    e.preventDefault();
+    handle.classList.add('resizing');
+    const current = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--label-width'));
+    startWidth = current;
+    startX = e.clientX;
+
+    const onMove = ev => {
+      const delta = ev.clientX - startX;
+      const newWidth = Math.max(100, Math.min(500, startWidth + delta));
+      document.documentElement.style.setProperty('--label-width', newWidth + 'px');
+    };
+
+    const onUp = () => {
+      handle.classList.remove('resizing');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+})();
 
 /* ── Init ── */
 renderColorPicker();
