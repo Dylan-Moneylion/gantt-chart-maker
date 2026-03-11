@@ -772,6 +772,14 @@
       box-shadow: inset 0 -2px 0 0 var(--accent);
     }
 
+    .gantt-row.insert-above {
+      box-shadow: inset 0 3px 0 0 #2ecc71;
+    }
+
+    .gantt-row.insert-below {
+      box-shadow: inset 0 -3px 0 0 #2ecc71;
+    }
+
     .row-label .row-color-dot {
       width: 12px;
       height: 12px;
@@ -1924,6 +1932,8 @@ function onDragEnd(e) {
   document.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
   document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
   document.querySelectorAll('.drag-over-add').forEach(el => el.classList.remove('drag-over-add'));
+  document.querySelectorAll('.insert-above, .insert-below').forEach(el =>
+    el.classList.remove('insert-above', 'insert-below'));
   e.currentTarget.style.opacity = '';
 }
 
@@ -1938,9 +1948,20 @@ function onRowDragOver(e) {
   if (dragData && dragData.source === 'reorder') return;
   e.preventDefault();
   e.dataTransfer.dropEffect = 'move';
+
+  const $row = e.currentTarget.closest('.gantt-row');
   const cells = e.currentTarget.querySelectorAll('.week-cell');
   cells.forEach(c => c.classList.remove('drag-over'));
-  if (dragData) {
+
+  if (dragData && dragData.source === 'bank') {
+    document.querySelectorAll('.insert-above, .insert-below').forEach(el =>
+      el.classList.remove('insert-above', 'insert-below'));
+    const rect = $row.getBoundingClientRect();
+    const mid = rect.top + rect.height / 2;
+    $row.classList.add(e.clientY < mid ? 'insert-above' : 'insert-below');
+    const wi = getWeekFromX(e, e.currentTarget);
+    if (cells[wi]) cells[wi].classList.add('drag-over');
+  } else if (dragData) {
     const wi = getWeekFromX(e, e.currentTarget);
     if (cells[wi]) cells[wi].classList.add('drag-over');
   }
@@ -1948,10 +1969,14 @@ function onRowDragOver(e) {
 
 function onRowDragLeave(e) {
   e.currentTarget.querySelectorAll('.week-cell').forEach(c => c.classList.remove('drag-over'));
+  const $row = e.currentTarget.closest('.gantt-row');
+  if ($row) $row.classList.remove('insert-above', 'insert-below');
 }
 
 function onRowDrop(e, rowIdx) {
   e.preventDefault();
+  document.querySelectorAll('.insert-above, .insert-below').forEach(el =>
+    el.classList.remove('insert-above', 'insert-below'));
   if (!dragData || dragData.source === 'reorder') return;
 
   const wi = getWeekFromX(e, e.currentTarget);
@@ -1965,17 +1990,12 @@ function onRowDrop(e, rowIdx) {
   }
 
   if (dragData.source === 'bank') {
-    const existingRow = chartRows[rowIdx];
-    if (existingRow && existingRow.task.id !== task.id) {
-      existingRow.task.placed = false;
-      existingRow.task.startWeek = null;
-      chartRows[rowIdx] = { task };
-    }
+    const $row = e.currentTarget.closest('.gantt-row');
+    const rect = $row.getBoundingClientRect();
+    const insertIdx = e.clientY < rect.top + rect.height / 2 ? rowIdx : rowIdx + 1;
     task.placed = true;
     task.startWeek = wi;
-    if (!chartRows.find(r => r.task.id === task.id)) {
-      chartRows[rowIdx] = { task };
-    }
+    chartRows.splice(insertIdx, 0, { task });
   } else if (dragData.source === 'chart') {
     task.startWeek = wi;
   }
