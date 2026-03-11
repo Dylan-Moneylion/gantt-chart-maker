@@ -1922,7 +1922,12 @@ function onBarDragStart(e) {
   e.stopPropagation();
   const id = parseInt(e.currentTarget.dataset.taskId);
   const rowIdx = parseInt(e.currentTarget.dataset.rowIdx);
-  dragData = { source: 'chart', taskId: id, rowIdx };
+  const task = tasks.find(t => t.id === id);
+  const rowCells = e.currentTarget.closest('.row-cells');
+  const rect = rowCells.getBoundingClientRect();
+  const cellWidth = rect.width / weeks.length;
+  const grabOffset = Math.floor((e.clientX - rect.left - task.startWeek * cellWidth) / cellWidth);
+  dragData = { source: 'chart', taskId: id, rowIdx, grabOffset: Math.max(0, grabOffset) };
   e.dataTransfer.effectAllowed = 'move';
   e.dataTransfer.setData('text/plain', '');
   e.currentTarget.style.opacity = '0.4';
@@ -1945,6 +1950,23 @@ function getWeekFromX(e, container) {
   return Math.max(0, Math.min(weeks.length - 1, Math.floor(x / cellWidth)));
 }
 
+function getDropStartWeek(e, container) {
+  const raw = getWeekFromX(e, container);
+  if (!dragData) return raw;
+  const task = tasks.find(t => t.id === dragData.taskId);
+  if (!task) return raw;
+  const offset = dragData.grabOffset || 0;
+  const startWi = Math.max(0, raw - offset);
+  return Math.min(startWi, weeks.length - task.weeks);
+}
+
+function highlightWeekSpan(cells, startWi, taskWeeks) {
+  cells.forEach(c => c.classList.remove('drag-over'));
+  for (let i = startWi; i < startWi + taskWeeks && i < weeks.length; i++) {
+    if (cells[i]) cells[i].classList.add('drag-over');
+  }
+}
+
 function onRowDragOver(e) {
   if (dragData && dragData.source === 'reorder') return;
   e.preventDefault();
@@ -1954,17 +1976,22 @@ function onRowDragOver(e) {
   const cells = e.currentTarget.querySelectorAll('.week-cell');
   cells.forEach(c => c.classList.remove('drag-over'));
 
-  if (dragData && dragData.source === 'bank') {
+  if (!dragData) return;
+  const task = tasks.find(t => t.id === dragData.taskId);
+  if (!task) return;
+
+  if (dragData.source === 'bank') {
     document.querySelectorAll('.insert-above, .insert-below').forEach(el =>
       el.classList.remove('insert-above', 'insert-below'));
     const rect = $row.getBoundingClientRect();
     const mid = rect.top + rect.height / 2;
     $row.classList.add(e.clientY < mid ? 'insert-above' : 'insert-below');
     const wi = getWeekFromX(e, e.currentTarget);
-    if (cells[wi]) cells[wi].classList.add('drag-over');
-  } else if (dragData) {
-    const wi = getWeekFromX(e, e.currentTarget);
-    if (cells[wi]) cells[wi].classList.add('drag-over');
+    const startWi = Math.min(wi, weeks.length - task.weeks);
+    highlightWeekSpan(cells, Math.max(0, startWi), task.weeks);
+  } else {
+    const startWi = getDropStartWeek(e, e.currentTarget);
+    highlightWeekSpan(cells, startWi, task.weeks);
   }
 }
 
@@ -1980,12 +2007,19 @@ function onRowDrop(e, rowIdx) {
     el.classList.remove('insert-above', 'insert-below'));
   if (!dragData || dragData.source === 'reorder') return;
 
-  const wi = getWeekFromX(e, e.currentTarget);
   const task = tasks.find(t => t.id === dragData.taskId);
   if (!task) return;
 
-  if (wi + task.weeks > weeks.length) {
-    showToast(`Not enough room — task needs ${task.weeks}w but only ${weeks.length - wi} left`);
+  let startWi;
+  if (dragData.source === 'chart') {
+    startWi = getDropStartWeek(e, e.currentTarget);
+  } else {
+    const raw = getWeekFromX(e, e.currentTarget);
+    startWi = Math.max(0, Math.min(raw, weeks.length - task.weeks));
+  }
+
+  if (startWi + task.weeks > weeks.length) {
+    showToast(`Not enough room — task needs ${task.weeks}w but only ${weeks.length - startWi} left`);
     dragData = null;
     return;
   }
@@ -1995,10 +2029,10 @@ function onRowDrop(e, rowIdx) {
     const rect = $row.getBoundingClientRect();
     const insertIdx = e.clientY < rect.top + rect.height / 2 ? rowIdx : rowIdx + 1;
     task.placed = true;
-    task.startWeek = wi;
+    task.startWeek = startWi;
     chartRows.splice(insertIdx, 0, { task });
   } else if (dragData.source === 'chart') {
-    task.startWeek = wi;
+    task.startWeek = startWi;
   }
 
   dragData = null;
