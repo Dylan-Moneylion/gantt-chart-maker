@@ -723,6 +723,8 @@
 
     /* Gantt rows */
     .gantt-body {
+      position: relative;
+      z-index: 1;
     }
 
     .gantt-row {
@@ -1040,6 +1042,7 @@
       position: sticky;
       left: 0;
       z-index: 3;
+      background: var(--surface);
       font-size: 12px;
       font-weight: 600;
       text-transform: uppercase;
