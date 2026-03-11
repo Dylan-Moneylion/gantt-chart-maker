@@ -551,13 +551,14 @@
     }
 
     .category-badge.no-cat {
-      opacity: 0;
+      display: none;
       font-size: 8px;
       padding: 1px 4px;
     }
 
     .gantt-row:hover .category-badge.no-cat,
     .task-bank-item:hover .category-badge.no-cat {
+      display: inline-block;
       opacity: 0.4;
     }
 
@@ -1307,7 +1308,7 @@
           <option value="12">12 weeks</option>
         </select>
         <select id="taskCategory">
-          <option value="">No category</option>
+          <option value="">No tag</option>
         </select>
         <div>
           <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:6px;">Color</label>
@@ -1316,10 +1317,10 @@
         <button type="submit" class="btn btn-primary" style="margin-top:4px;">Add Task</button>
       </form>
       <div class="category-manager">
-        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:6px;">Manage Categories</label>
+        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:6px;">Manage Tags</label>
         <div class="category-tags" id="categoryTags"></div>
         <div class="category-add-row">
-          <input type="text" id="newCategoryInput" placeholder="New category">
+          <input type="text" id="newCategoryInput" placeholder="New tag">
           <button class="btn btn-ghost btn-sm" id="addCategoryBtn">+</button>
         </div>
       </div>
@@ -1427,7 +1428,7 @@ function isCurrentWeek(w) {
 function renderCategorySelect() {
   const sel = document.getElementById('taskCategory');
   const current = sel.value;
-  sel.innerHTML = '<option value="">No category</option>' +
+  sel.innerHTML = '<option value="">No tag</option>' +
     categories.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
   if (categories.includes(current)) sel.value = current;
 }
@@ -1435,7 +1436,7 @@ function renderCategorySelect() {
 function renderCategoryTags() {
   const container = document.getElementById('categoryTags');
   if (categories.length === 0) {
-    container.innerHTML = '<span style="font-size:11px;color:var(--text-muted);">No categories yet</span>';
+    container.innerHTML = '<span style="font-size:11px;color:var(--text-muted);">No tags yet</span>';
     return;
   }
   container.innerHTML = categories.map(c =>
@@ -1495,7 +1496,7 @@ function showCategoryDropdown(anchorEl, task) {
 
   const noneItem = document.createElement('div');
   noneItem.className = 'category-dropdown-item' + (!task.category ? ' active' : '');
-  noneItem.textContent = 'No category';
+  noneItem.textContent = 'No tag';
   noneItem.addEventListener('click', () => {
     task.category = null;
     closeCategoryDropdown();
@@ -1688,7 +1689,7 @@ function renderTaskBank() {
     <div class="task-bank-item ${tooLong ? 'too-long' : ''}" draggable="${!tooLong}" data-task-id="${t.id}" style="background:${t.color};" ${tooLong ? 'title="Task exceeds date range"' : ''}>
       <span class="bank-color-dot" data-task-id="${t.id}" title="Change color" style="background:rgba(255,255,255,0.3);"></span>
       <span class="bank-name-group">
-        <span class="category-badge ${t.category ? '' : 'no-cat'}" data-task-id="${t.id}" title="Change category">${t.category ? escHtml(t.category) : '+ tag'}</span>
+        <span class="category-badge ${t.category ? '' : 'no-cat'}" data-task-id="${t.id}" title="Change tag">${t.category ? escHtml(t.category) : '+ tag'}</span>
         <span class="task-name">${escHtml(t.name)}</span>
       </span>
       <span class="task-weeks">${t.weeks}w</span>
@@ -1748,7 +1749,7 @@ function renderGantt() {
       <span class="drag-handle" draggable="true" title="Drag to reorder">⠿</span>
       <span class="row-color-dot" style="background:${row.task.color};"></span>
       <span class="row-name-group">
-        <span class="category-badge ${row.task.category ? '' : 'no-cat'}" data-task-id="${row.task.id}" title="Change category">${row.task.category ? escHtml(row.task.category) : '+ tag'}</span>
+        <span class="category-badge ${row.task.category ? '' : 'no-cat'}" data-task-id="${row.task.id}" title="Change tag">${row.task.category ? escHtml(row.task.category) : '+ tag'}</span>
         <span class="row-task-name">${escHtml(row.task.name)}</span>
       </span>
       <span class="row-weeks">${row.task.weeks}w</span>
@@ -2375,7 +2376,7 @@ document.getElementById('exportExcelBtn').addEventListener('click', () => {
     const title = document.getElementById('chartTitle').textContent || 'Gantt Chart';
     const wb = XLSX.utils.book_new();
 
-    const headerRow = ['Task', 'Category', 'Weeks'];
+    const headerRow = ['Task', 'Tag', 'Weeks'];
     weeks.forEach((w, i) => {
       headerRow.push(`W${i + 1}\n${formatShort(w.start)} – ${formatShort(w.end)}`);
     });
