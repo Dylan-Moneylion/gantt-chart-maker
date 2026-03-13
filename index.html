@@ -1401,6 +1401,9 @@
     <button class="btn btn-export" id="exportBtn">Export as Image</button>
     <button class="btn btn-export" id="exportExcelBtn">Export as Excel</button>
     <span style="width:1px;height:24px;background:var(--border);margin:0 4px;"></span>
+    <button class="btn btn-ghost" id="undoBtn" title="Undo (Ctrl+Z)" disabled style="opacity:0.4;">↩ Undo</button>
+    <button class="btn btn-ghost" id="redoBtn" title="Redo (Ctrl+Shift+Z)" disabled style="opacity:0.4;">↪ Redo</button>
+    <span style="width:1px;height:24px;background:var(--border);margin:0 4px;"></span>
     <button class="btn btn-ghost" id="saveConfigBtn">Save Config</button>
     <button class="btn btn-ghost" id="loadConfigBtn">Load Config</button>
     <input type="file" id="loadConfigInput" accept=".json" style="display:none;">
@@ -1505,6 +1508,113 @@ const $ganttBody = document.getElementById('ganttBody');
 const $taskBank = document.getElementById('taskBank');
 const $ganttAddRow = document.getElementById('ganttAddRow');
 const $noteCells = document.getElementById('noteCells');
+const $undoBtn = document.getElementById('undoBtn');
+const $redoBtn = document.getElementById('redoBtn');
+
+/* ── Undo / Redo system ── */
+let undoStack = [];
+let redoStack = [];
+let lastSnapshot = null;
+let pendingSnapshot = null;
+let snapshotTimer = null;
+let isUndoingOrRedoing = false;
+
+function captureSnapshot() {
+  return JSON.stringify({
+    tasks: tasks,
+    chartRowIds: chartRows.map(r => r.task.id),
+    weekNotes: weekNotes,
+    categories: categories,
+    nextId: nextId,
+  });
+}
+
+function recordUndo() {
+  if (isUndoingOrRedoing) { lastSnapshot = captureSnapshot(); return; }
+  const snap = captureSnapshot();
+  if (lastSnapshot === null) { lastSnapshot = snap; return; }
+  if (snap === lastSnapshot) return;
+  if (pendingSnapshot === null) pendingSnapshot = lastSnapshot;
+  lastSnapshot = snap;
+  redoStack = [];
+  clearTimeout(snapshotTimer);
+  snapshotTimer = setTimeout(() => {
+    if (pendingSnapshot !== null) {
+      undoStack.push(pendingSnapshot);
+      pendingSnapshot = null;
+      updateUndoRedoBtn();
+    }
+  }, 300);
+}
+
+function flushUndo() {
+  clearTimeout(snapshotTimer);
+  if (pendingSnapshot !== null) {
+    undoStack.push(pendingSnapshot);
+    pendingSnapshot = null;
+    updateUndoRedoBtn();
+  }
+}
+
+function restoreState(state) {
+  tasks = state.tasks;
+  chartRows = (state.chartRowIds || [])
+    .map(id => { const t = tasks.find(tk => tk.id === id); return t ? { task: t } : null; })
+    .filter(Boolean);
+  weekNotes = state.weekNotes || {};
+  categories = state.categories || [];
+  nextId = state.nextId || 1;
+  renderGantt();
+  renderTaskBank();
+  renderCategoryTags();
+  renderCategorySelect();
+}
+
+function undo() {
+  flushUndo();
+  if (undoStack.length === 0) return;
+  isUndoingOrRedoing = true;
+  redoStack.push(lastSnapshot);
+  const state = JSON.parse(undoStack.pop());
+  restoreState(state);
+  isUndoingOrRedoing = false;
+  lastSnapshot = captureSnapshot();
+  updateUndoRedoBtn();
+}
+
+function redo() {
+  if (redoStack.length === 0) return;
+  flushUndo();
+  isUndoingOrRedoing = true;
+  undoStack.push(lastSnapshot);
+  const state = JSON.parse(redoStack.pop());
+  restoreState(state);
+  isUndoingOrRedoing = false;
+  lastSnapshot = captureSnapshot();
+  updateUndoRedoBtn();
+}
+
+function updateUndoRedoBtn() {
+  const hasUndo = undoStack.length > 0 || pendingSnapshot !== null;
+  $undoBtn.disabled = !hasUndo;
+  $undoBtn.style.opacity = hasUndo ? '' : '0.4';
+  const hasRedo = redoStack.length > 0;
+  $redoBtn.disabled = !hasRedo;
+  $redoBtn.style.opacity = hasRedo ? '' : '0.4';
+}
+
+$undoBtn.addEventListener('click', undo);
+$redoBtn.addEventListener('click', redo);
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+    e.preventDefault();
+    undo();
+  }
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+    e.preventDefault();
+    redo();
+  }
+});
 
 /* ── Date helpers ── */
 function mondayOf(d) {
@@ -2002,6 +2112,7 @@ function renderGantt() {
     $row.appendChild($cells);
     $ganttBody.appendChild($row);
   });
+  recordUndo();
 }
 
 function createTaskBar(task, rowIdx) {
@@ -3324,10 +3435,15 @@ function loadConfig(file) {
         document.documentElement.style.setProperty('--label-width', data.labelWidth);
       }
 
+      undoStack = [];
+      redoStack = [];
+      pendingSnapshot = null;
+      lastSnapshot = null;
       applyDates();
       renderTaskBank();
       renderCategoryTags();
       renderCategorySelect();
+      updateUndoRedoBtn();
       showToast('Config loaded');
     } catch (err) {
       showToast('Failed to load config — invalid file');
