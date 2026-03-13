@@ -993,14 +993,17 @@
     .task-bar.segmented .bar-label { display: none; }
 
     .task-bar .segment {
+      position: absolute;
+      top: 0;
+      bottom: 0;
       display: flex;
       align-items: center;
       justify-content: center;
-      align-self: stretch;
       padding: 2px 4px;
       overflow: hidden;
       min-width: 0;
-      transition: background 0.15s;
+      transition: background 0.15s, opacity 0.2s;
+      border-radius: 0;
     }
 
     .task-bar .segment:first-of-type {
@@ -1026,11 +1029,11 @@
 
     .task-bar .segment-divider {
       width: 2px;
-      margin: 0 -1px;
-      align-self: stretch;
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      transform: translateX(-50%);
       cursor: col-resize;
-      flex-shrink: 0;
-      position: relative;
       z-index: 2;
       background: rgba(0,0,0,0.6);
       transition: background 0.12s;
@@ -2268,17 +2271,25 @@ function createTaskBar(task, rowIdx) {
   bar.dataset.rowIdx = rowIdx;
 
   if (hasSegs) {
+    let cumWeeks = 0;
     task.segments.forEach((seg, si) => {
       if (si > 0) {
         const divider = document.createElement('div');
         divider.className = 'segment-divider';
+        divider.style.left = `calc(${cumWeeks / task.weeks} * (100% + 4px))`;
         divider.addEventListener('mousedown', e => onDividerResize(e, task, si - 1));
         bar.appendChild(divider);
       }
       const segDiv = document.createElement('div');
       segDiv.className = 'segment';
-      segDiv.style.flex = seg.weeks;
+      segDiv.style.left = `calc(${cumWeeks / task.weeks} * (100% + 4px))`;
+      if (si < task.segments.length - 1) {
+        segDiv.style.width = `calc(${seg.weeks / task.weeks} * (100% + 4px))`;
+      } else {
+        segDiv.style.right = '0';
+      }
       segDiv.style.background = getSegShade(task, si, task.segments.length);
+      cumWeeks += seg.weeks;
       const segLabel = document.createElement('span');
       segLabel.className = 'seg-label';
       segLabel.textContent = seg.label;
@@ -2631,21 +2642,29 @@ function showGhostRow(task, insertIdx, startWi) {
   bar.style.left = `calc(${startWi} * (100% / ${weeks.length}))`;
   bar.style.width = `calc(${task.weeks} * (100% / ${weeks.length}) - 4px)`;
   if (hasSegs) {
+    let cumW = 0;
     task.segments.forEach((seg, si) => {
       if (si > 0) {
         const d = document.createElement('div');
         d.className = 'segment-divider';
+        d.style.left = `calc(${cumW / task.weeks} * (100% + 4px))`;
         bar.appendChild(d);
       }
       const s = document.createElement('div');
       s.className = 'segment';
-      s.style.flex = seg.weeks;
+      s.style.left = `calc(${cumW / task.weeks} * (100% + 4px))`;
+      if (si < task.segments.length - 1) {
+        s.style.width = `calc(${seg.weeks / task.weeks} * (100% + 4px))`;
+      } else {
+        s.style.right = '0';
+      }
       s.style.background = getSegShade(task, si, task.segments.length);
       const l = document.createElement('span');
       l.className = 'seg-label';
       l.textContent = seg.label;
       s.appendChild(l);
       bar.appendChild(s);
+      cumW += seg.weeks;
     });
   }
   const barLabel = document.createElement('span');
