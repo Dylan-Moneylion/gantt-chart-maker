@@ -1068,6 +1068,26 @@
 
     .segment-menu .menu-item:hover { background: var(--surface-2); }
 
+    .segment-menu .menu-item.has-submenu {
+      position: relative;
+    }
+
+    .segment-menu .context-submenu {
+      display: none;
+      position: fixed;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 4px 0;
+      min-width: 150px;
+      z-index: 201;
+    }
+
+    .segment-menu .menu-item.has-submenu:hover > .context-submenu {
+      display: block;
+    }
+
     .segment-menu .menu-divider {
       height: 1px;
       background: var(--border);
@@ -1575,10 +1595,22 @@ const COLORS = [
 const PHASE_TYPES = [
   { label: 'Product', color: '#fdcb6e' },
   { label: 'Design', color: '#e84393' },
-  { label: 'Engineering', color: '#0984e3' },
+  { label: 'Engineering', color: '#0984e3', subOptions: [
+    'Mobile', 'BE', 'Web', 'Mobile + BE', 'Web + BE'
+  ]},
   { label: 'Data', color: '#00cec9' },
   { label: 'QA', color: '#00b894' },
 ];
+
+function isEngPhase(label) {
+  return label === 'Engineering' || (label && label.startsWith('Eng: '));
+}
+
+function phaseMatchesFilter(label, filter) {
+  if (label === filter) return true;
+  if (filter === 'Engineering' && isEngPhase(label)) return true;
+  return false;
+}
 
 function hexToRgb(hex) {
   const h = hex.replace('#', '');
@@ -1635,9 +1667,9 @@ function buildPhaseFilter() {
 }
 
 function taskMatchesPhase(task, phase) {
-  if (task.phase === phase) return true;
+  if (phaseMatchesFilter(task.phase, phase)) return true;
   if (task.segments) {
-    return task.segments.some(seg => seg.label === phase);
+    return task.segments.some(seg => phaseMatchesFilter(seg.label, phase));
   }
   return false;
 }
@@ -1656,18 +1688,18 @@ function applyPhaseFilter() {
     if (!activePhaseFilter) return;
 
     if (task.segments && task.segments.length) {
-      const anyMatch = task.segments.some(seg => seg.label === activePhaseFilter);
+      const anyMatch = task.segments.some(seg => phaseMatchesFilter(seg.label, activePhaseFilter));
       if (!anyMatch) {
         rowEl.classList.add('phase-dimmed');
       } else if (bar) {
         bar.querySelectorAll('.segment').forEach((segEl, si) => {
-          if (task.segments[si] && task.segments[si].label !== activePhaseFilter) {
+          if (task.segments[si] && !phaseMatchesFilter(task.segments[si].label, activePhaseFilter)) {
             segEl.classList.add('seg-dimmed');
           }
         });
       }
     } else {
-      if (task.phase !== activePhaseFilter) {
+      if (!phaseMatchesFilter(task.phase, activePhaseFilter)) {
         rowEl.classList.add('phase-dimmed');
       }
     }
@@ -2413,6 +2445,23 @@ function closeSegmentMenu() {
   if (existing) existing.remove();
 }
 
+function positionSubmenu(wrapper, sub) {
+  wrapper.addEventListener('mouseenter', () => {
+    const wr = wrapper.getBoundingClientRect();
+    let left = wr.right;
+    let top = wr.top;
+    sub.style.left = left + 'px';
+    sub.style.top = top + 'px';
+    requestAnimationFrame(() => {
+      const sr = sub.getBoundingClientRect();
+      if (sr.right > window.innerWidth) left = wr.left - sr.width;
+      if (sr.bottom > window.innerHeight) top = window.innerHeight - sr.height - 8;
+      sub.style.left = left + 'px';
+      sub.style.top = top + 'px';
+    });
+  });
+}
+
 function showSegmentMenu(e, task, segIdx, rowIdx) {
   closeSegmentMenu();
   const menu = document.createElement('div');
@@ -2455,15 +2504,49 @@ function showSegmentMenu(e, task, segIdx, rowIdx) {
     menu.appendChild(lbl);
 
     PHASE_TYPES.forEach(phase => {
-      const item = document.createElement('div');
-      item.className = 'menu-item';
-      item.textContent = phase.label;
-      item.addEventListener('click', () => {
-        closeSegmentMenu();
-        task.phase = phase.label;
-        renderGantt();
-      });
-      menu.appendChild(item);
+      if (phase.subOptions) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'menu-item has-submenu';
+        wrapper.textContent = phase.label + ' ▸';
+        const sub = document.createElement('div');
+        sub.className = 'context-submenu';
+        const baseItem = document.createElement('div');
+        baseItem.className = 'menu-item';
+        baseItem.textContent = phase.label;
+        baseItem.addEventListener('click', () => {
+          closeSegmentMenu();
+          task.phase = phase.label;
+          renderGantt();
+        });
+        sub.appendChild(baseItem);
+        const subDiv = document.createElement('div');
+        subDiv.className = 'menu-divider';
+        sub.appendChild(subDiv);
+        phase.subOptions.forEach(opt => {
+          const si = document.createElement('div');
+          si.className = 'menu-item';
+          si.textContent = 'Eng: ' + opt;
+          si.addEventListener('click', () => {
+            closeSegmentMenu();
+            task.phase = 'Eng: ' + opt;
+            renderGantt();
+          });
+          sub.appendChild(si);
+        });
+        wrapper.appendChild(sub);
+        positionSubmenu(wrapper, sub);
+        menu.appendChild(wrapper);
+      } else {
+        const item = document.createElement('div');
+        item.className = 'menu-item';
+        item.textContent = phase.label;
+        item.addEventListener('click', () => {
+          closeSegmentMenu();
+          task.phase = phase.label;
+          renderGantt();
+        });
+        menu.appendChild(item);
+      }
     });
 
     if (task.phase) {
@@ -2538,16 +2621,52 @@ function showSegmentMenu(e, task, segIdx, rowIdx) {
     menu.appendChild(lbl);
 
     PHASE_TYPES.forEach(phase => {
-      const item = document.createElement('div');
-      item.className = 'menu-item';
-      item.textContent = phase.label;
-      item.addEventListener('click', () => {
-        closeSegmentMenu();
-        seg.label = phase.label;
-        seg.color = phase.color;
-        renderGantt();
-      });
-      menu.appendChild(item);
+      if (phase.subOptions) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'menu-item has-submenu';
+        wrapper.textContent = phase.label + ' ▸';
+        const sub = document.createElement('div');
+        sub.className = 'context-submenu';
+        const baseItem = document.createElement('div');
+        baseItem.className = 'menu-item';
+        baseItem.textContent = phase.label;
+        baseItem.addEventListener('click', () => {
+          closeSegmentMenu();
+          seg.label = phase.label;
+          seg.color = phase.color;
+          renderGantt();
+        });
+        sub.appendChild(baseItem);
+        const subDiv = document.createElement('div');
+        subDiv.className = 'menu-divider';
+        sub.appendChild(subDiv);
+        phase.subOptions.forEach(opt => {
+          const si = document.createElement('div');
+          si.className = 'menu-item';
+          si.textContent = 'Eng: ' + opt;
+          si.addEventListener('click', () => {
+            closeSegmentMenu();
+            seg.label = 'Eng: ' + opt;
+            seg.color = phase.color;
+            renderGantt();
+          });
+          sub.appendChild(si);
+        });
+        wrapper.appendChild(sub);
+        positionSubmenu(wrapper, sub);
+        menu.appendChild(wrapper);
+      } else {
+        const item = document.createElement('div');
+        item.className = 'menu-item';
+        item.textContent = phase.label;
+        item.addEventListener('click', () => {
+          closeSegmentMenu();
+          seg.label = phase.label;
+          seg.color = phase.color;
+          renderGantt();
+        });
+        menu.appendChild(item);
+      }
     });
   }
 
